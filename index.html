@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANE Neural Chat</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js for code formatting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        glass: 'rgba(255, 255, 255, 0.05)',
+                        glassBorder: 'rgba(255, 255, 255, 0.1)',
+                    },
+                    animation: {
+                        'gradient-x': 'gradient-x 15s ease infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        'gradient-x': {
+                            '0%, 100%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'left center'
+                            },
+                            '50%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'right center'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            /* Deep, dark mesmerizing gradient background */
+            background: linear-gradient(-45deg, #0f172a, #111827, #000000, #1e1b4b);
+            background-size: 400% 400%;
+            animation: gradient-x 15s ease infinite;
+            color: #f8fafc;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* Glassmorphism utility classes */
+        .glass-panel {
+            background: rgba(20, 25, 40, 0.5);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-bubble-user {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-bubble-ai {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Markdown Styles within AI chat bubbles */
+        .markdown-body p { margin-bottom: 0.75rem; }
+        .markdown-body pre {
+            background: #1a1b26;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .markdown-body code {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .markdown-body p > code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+        /* Smooth enter transitions */
+        .msg-enter-active, .msg-leave-active { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .msg-enter-from { opacity: 0; transform: translateY(10px) scale(0.98); }
+        .msg-leave-to { opacity: 0; transform: scale(0.95); }
+    </style>
+</head>
+<body class="h-screen w-full flex overflow-hidden">
+
+    <div id="app" class="w-full h-full flex flex-col pt-4 px-4 pb-8 max-w-5xl mx-auto">
+        
+        <!-- Header -->
+        <header class="glass-panel rounded-2xl p-4 flex items-center justify-between mb-6 shrink-0 z-10 transition-all">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center p-[2px]">
+                    <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center">
+                        <i class="ph-fill ph-cpu text-xl text-cyan-400 animate-pulse-slow"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300">Apple Neural Engine</h1>
+                    <p class="text-xs text-slate-400 tracking-wider">LOCAL <span class="text-green-400">•</span> INFERENCE</p>
+                </div>
+            </div>
+
+            <!-- Model Selector -->
+            <div class="flex items-center gap-3">
+                <button @click="showMcpModal = true" class="glass-panel text-slate-300 hover:text-white text-sm py-2 px-4 rounded-xl transition-all flex items-center gap-2 hover:bg-white/10 active:scale-95">
+                    <i class="ph-bold ph-wrench"></i> Tools
+                </button>
+                <div v-if="loadingModels" class="text-sm text-slate-400 flex items-center gap-2">
+                    <i class="ph ph-spinner animate-spin"></i> Scanning...
+                </div>
+                <select v-else v-model="selectedModel" @change="loadModel" class="glass-panel bg-transparent text-sm py-2 px-4 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none pr-10 relative">
+                    <option v-for="model in models" :key="model.id" :value="model.id" class="bg-slate-900 text-white">
+                        {{ model.name }}
+                    </option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Chat Container -->
+        <main class="flex-1 glass-panel rounded-3xl p-6 flex flex-col overflow-hidden relative shadow-2xl">
+            <!-- Background Glow -->
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+
+            <!-- Messages Area -->
+            <div id="messages-container" class="flex-1 overflow-y-auto pr-2 pb-4 scroll-smooth">
+                
+                <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-slate-500 gap-4 opacity-70">
+                    <i class="ph ph-sparkle text-6xl text-blue-500/50"></i>
+                    <p class="text-lg">Capabilities operating at 38 TOPS.</p>
+                </div>
+
+                <TransitionGroup name="msg" tag="div" class="flex flex-col gap-6">
+                    <div v-for="(msg, index) in messages" :key="index" 
+                         class="flex w-full" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                        
+                        <div v-if="msg.role === 'assistant'" class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mr-3 shrink-0 mt-1">
+                            <i class="ph-fill ph-robot text-blue-400"></i>
+                        </div>
+
+                        <div class="max-w-[80%] rounded-2xl px-5 py-3 shadow-lg"
+                             :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'">
+                            
+                            <!-- User text -->
+                            <div v-if="msg.role === 'user'" class="whitespace-pre-wrap">{{ msg.content }}</div>
+                            
+                            <!-- AI text (Markdown) -->
+                            <div v-else class="markdown-body" v-html="renderMarkdown(msg.content)"></div>
+                        </div>
+
+                    </div>
+                </TransitionGroup>
+
+                <!-- Streaming typing indicator -->
+                <div v-if="isGenerating" class="flex justify-start mt-6 opacity-60">
+                    <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mr-3 shrink-0">
+                        <i class="ph-fill ph-robot text-blue-400 animate-pulse"></i>
+                    </div>
+                    <div class="chat-bubble-ai px-5 py-4 rounded-2xl flex items-center gap-1">
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></div>
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Input Area -->
+            <div class="mt-4 pt-4 shrink-0 border-t border-white/10 relative z-10 flex flex-col gap-2">
+                
+                <!-- Attached File Pill label -->
+                <div v-if="attachedFilename" class="flex items-center gap-2 self-start px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs">
+                    <i class="ph-fill ph-file-text"></i>
+                    <span class="truncate max-w-[200px]">{{ attachedFilename }}</span>
+                    <button @click="clearAttachment" class="hover:text-white ml-1">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="sendMessage" class="relative group">
+                    <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-500"></div>
+                    <div class="relative glass-panel rounded-2xl flex items-end p-2 transition duration-300">
+                        <textarea 
+                            v-model="inputQuery" 
+                            @keydown.enter.exact.prevent="sendMessage"
+                            rows="1"
+                            class="w-full bg-transparent text-white px-4 py-3 outline-none resize-none placeholder-slate-400 max-h-32"
+                            placeholder="Ask the Neural Engine something... (Attach files for context)"
+                            style="min-height: 52px;"
+                            :disabled="isGenerating || isUploading"
+                            @input="autoResize"
+                            ref="chatInput"
+                        ></textarea>
+                        
+                        <!-- File Upload Button -->
+                        <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload">
+                        <button type="button" 
+                                @click="$refs.fileInput.click()"
+                                :disabled="isGenerating || isUploading"
+                                class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all mb-1 mr-2"
+                                title="Attach Document (OCR)">
+                            <i v-if="!isUploading" class="ph-bold ph-paperclip text-lg"></i>
+                            <i v-else class="ph-bold ph-spinner animate-spin text-lg text-blue-400"></i>
+                        </button>
+
+                        <button type="submit" 
+                                :disabled="(!inputQuery.trim() && !attachedFilename) || isGenerating || isUploading"
+                                class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-blue-500/30 transition-all mb-1 mr-1">
+                            <i class="ph-bold ph-paper-plane-right text-lg"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+
+        <!-- MCP Tools Modal -->
+        <Transition name="msg">
+            <div v-if="showMcpModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showMcpModal = false"></div>
+                <div class="relative w-full max-w-2xl max-h-[80vh] flex flex-col glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="ph-bold ph-plugs text-blue-400"></i> Connected Tools (MCP)
+                        </h2>
+                        <button @click="showMcpModal = false" class="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full w-8 h-8 flex items-center justify-center">
+                            <i class="ph-bold ph-x text-lg"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-6 overflow-y-auto flex-1">
+                        <div v-if="loadingMcp" class="flex flex-col items-center justify-center py-10 text-slate-400 gap-3">
+                            <i class="ph-bold ph-spinner animate-spin text-3xl text-blue-500"></i>
+                            <p>Querying Bridge for connected tools...</p>
+                        </div>
+                        <div v-else-if="Object.keys(mcpTools).length === 0" class="text-center text-slate-400 py-10">
+                            No active tools found on the utility bridge.
+                        </div>
+                        <div v-else class="flex flex-col gap-6">
+                            <div v-for="(tools, serverName) in mcpTools" :key="serverName" class="flex flex-col gap-3">
+                                <h3 class="text-cyan-400 font-bold text-xs uppercase translate-y-1 tracking-[0.1em]">{{ serverName }}</h3>
+                                <div v-if="tools.error" class="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-sm">
+                                    {{ tools.error }}
+                                </div>
+                                <div v-else class="flex flex-col gap-2">
+                                    <div v-for="tool in tools" :key="tool.name" class="bg-white/5 border border-white/5 rounded-xl p-4 hover:bg-white/10 transition-colors group">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="font-bold text-slate-200 group-hover:text-blue-300 transition-colors">{{ tool.name }}</span>
+                                        </div>
+                                        <p class="text-xs text-slate-400 leading-relaxed">{{ tool.description || 'No description provided.' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+    </div>
+
+    <script>
+        // Configure marked to use highlight.js
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            },
+            langPrefix: 'hljs language-'
+        });
+
+        const { createApp, ref, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const inputQuery = ref('');
+                const messages = ref([]);
+                const isGenerating = ref(false);
+                const chatInput = ref(null);
+                const fileInput = ref(null);
+                
+                const models = ref([]);
+                const selectedModel = ref(null);
+                const loadingModels = ref(true);
+
+                // MCP Tools State
+                const showMcpModal = ref(false);
+                const mcpTools = ref({});
+                const loadingMcp = ref(false);
+
+                const fetchMcpTools = async () => {
+                    loadingMcp.value = true;
+                    try {
+                        const res = await fetch('/api/mcp/list');
+                        const data = await res.json();
+                        mcpTools.value = data;
+                    } catch (e) {
+                        console.error("Failed to fetch MCP tools", e);
+                    } finally {
+                        loadingMcp.value = false;
+                    }
+                };
+
+                Vue.watch(showMcpModal, (newVal) => {
+                    if (newVal) {
+                        fetchMcpTools();
+                    }
+                });
+
+                // File Upload State
+                const attachedFilename = ref('');
+                const fileContext = ref('');
+                const isUploading = ref(false);
+
+                const clearAttachment = () => {
+                    attachedFilename.value = '';
+                    fileContext.value = '';
+                    if (fileInput.value) fileInput.value.value = '';
+                };
+
+                const handleFileUpload = async (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    attachedFilename.value = file.name;
+                    isUploading.value = true;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (data.markdown) {
+                            fileContext.value = data.markdown;
+                            console.log("Extracted context length:", data.markdown.length);
+                        } else if (data.error) {
+                            alert("OCR Error: " + data.error);
+                            clearAttachment();
+                        }
+                    } catch (e) {
+                        console.error('Upload failed', e);
+                        alert("Upload failed. Bridge server might not be running.");
+                        clearAttachment();
+                    } finally {
+                        isUploading.value = false;
+                    }
+                };
+
+                const fetchModels = async () => {
+                    try {
+                        const res = await fetch('/api/models');
+                        const data = await res.json();
+                        models.value = data.models;
+                        if (models.value.length > 0) {
+                            selectedModel.value = models.value[0].id;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load models list', e);
+                    } finally {
+                        loadingModels.value = false;
+                    }
+                };
+
+                const loadModel = async () => {
+                    if (!selectedModel.value) return;
+                    try {
+                        const res = await fetch('/api/load', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ model_dir: selectedModel.value })
+                        });
+                        console.log('Model load requested');
+                    } catch(e) {
+                        console.error(e);
+                    }
+                };
+
+                const scrollToBottom = async () => {
+                    await nextTick();
+                    const container = document.getElementById('messages-container');
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                };
+
+                const autoResize = () => {
+                    const el = chatInput.value;
+                    if (!el) return;
+                    el.style.height = 'auto';
+                    el.style.height = (el.scrollHeight) + 'px';
+                };
+
+                const renderMarkdown = (text) => {
+                    return marked.parse(text);
+                };
+
+                const sendMessage = async () => {
+                    const text = inputQuery.value.trim();
+                    if ((!text && !fileContext.value) || isGenerating.value || isUploading.value) return;
+
+                    // Compile final prompt
+                    let finalPrompt = text;
+                    let displayContent = text;
+
+                    if (fileContext.value) {
+                        finalPrompt = `I have attached a document named "${attachedFilename.value}".\n\n<document_content>\n${fileContext.value}\n</document_content>\n\nUser query: ${text || 'Please summarize the attached document.'}`;
+                        displayContent = text ? `[Attached: ${attachedFilename.value}]\n\n${text}` : `[Attached: ${attachedFilename.value}]`;
+                    }
+
+                    // Add user message
+                    messages.value.push({ role: 'user', content: displayContent, backendContent: finalPrompt });
+                    inputQuery.value = '';
+                    clearAttachment();
+                    autoResize();
+                    scrollToBottom();
+
+                    // Placeholder for AI response
+                    const aiMessageIndex = messages.value.length;
+                    messages.value.push({ role: 'assistant', content: '' });
+                    
+                    isGenerating.value = true;
+                    scrollToBottom();
+
+                    const apiMessages = messages.value.slice(0, aiMessageIndex).map(m => ({
+                        role: m.role,
+                        content: m.backendContent || m.content
+                    }));
+
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                model: selectedModel.value,
+                                messages: apiMessages,
+                                stream: true
+                            })
+                        });
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder("utf-8");
+
+                        let done = false;
+
+                        while (!done) {
+                            const { value, done: readerDone } = await reader.read();
+                            done = readerDone;
+                            
+                            if (value) {
+                                const chunk = decoder.decode(value, { stream: true });
+                                const lines = chunk.split('\n');
+                                
+                                for (const line of lines) {
+                                    if (!line.trim()) continue;
+                                    try {
+                                        const cleanLine = line.startsWith('data: ') ? line.replace('data: ', '') : line;
+                                        if (cleanLine === '[DONE]') { done = true; break; }
+                                        
+                                        const data = JSON.parse(cleanLine);
+                                        const token = data.message ? data.message.content : (data.token || '');
+                                        messages.value[aiMessageIndex].content += token;
+                                        scrollToBottom();
+                                        
+                                        if (data.done) { done = true; break; }
+                                    } catch (e) {
+                                        // Ignore partial JSON lines
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check for tool call execution
+                        const responseContent = messages.value[aiMessageIndex].content.trim();
+                        if (responseContent.includes('"tool_call"')) {
+                            try {
+                                const jsonMatch = responseContent.match(/\{[\s\S]*"tool_call"[\s\S]*\}/);
+                                if (jsonMatch) {
+                                    const parsed = JSON.parse(jsonMatch[0]);
+                                    if (parsed.tool_call && parsed.tool_call.name) {
+                                        const [serverName, toolName] = parsed.tool_call.name.split(':');
+                                        
+                                        messages.value.push({ role: 'assistant', content: `*[System: Executing MCP Tool ${toolName}...]*` });
+                                        scrollToBottom();
+
+                                        const toolRes = await fetch('/api/mcp/call', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                server_name: serverName,
+                                                tool_name: toolName,
+                                                arguments: parsed.tool_call.arguments || {}
+                                            })
+                                        });
+                                        const toolData = await toolRes.json();
+                                        
+                                        const resultText = JSON.stringify(toolData);
+                                        setTimeout(() => {
+                                            fileContext.value = `<tool_result>\n${resultText}\n</tool_result>\n\nPlease continue your previous thought using this result. Do not output JSON again unless you are making another tool call.`;
+                                            inputQuery.value = 'Analyze the tool result...';
+                                            sendMessage();
+                                        }, 100);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn("Failed to parse tool call:", e);
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error('Chat error:', error);
+                        messages.value[aiMessageIndex].content += '\n\n**Error formatting response.**';
+                    } finally {
+                        isGenerating.value = false;
+                        scrollToBottom();
+                        // Re-trigger highlight
+                        await nextTick();
+                        document.querySelectorAll('pre code').forEach((block) => {
+                            hljs.highlightElement(block);
+                        });
+                    }
+                };
+
+                onMounted(() => {
+                    fetchModels();
+                    chatInput.value?.focus();
+                });
+
+                return {
+                    inputQuery,
+                    messages,
+                    isGenerating,
+                    sendMessage,
+                    chatInput,
+                    fileInput,
+                    autoResize,
+                    renderMarkdown,
+                    models,
+                    selectedModel,
+                    loadingModels,
+                    loadModel,
+                    attachedFilename,
+                    isUploading,
+                    clearAttachment,
+                    handleFileUpload,
+                    showMcpModal,
+                    mcpTools,
+                    loadingMcp
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

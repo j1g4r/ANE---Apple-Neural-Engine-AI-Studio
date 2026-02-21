@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANE Studio</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        surface: { 50: '#1a1b2e', 100: '#151624', 200: '#111219', 300: '#0d0e14', 400: '#0a0b0f' },
+                        accent: { 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb' },
+                        emerald: { 400: '#34d399', 500: '#10b981' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0a0b0f; color: #e2e8f0; margin: 0; overflow: hidden; }
+
+        .sidebar-item { transition: all 0.2s ease; border-left: 3px solid transparent; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.05); }
+        .sidebar-item.active { background: rgba(59,130,246,0.15); border-left-color: #3b82f6; color: #60a5fa; }
+
+        .glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(20px); }
+        .glass-hover:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+
+        .model-card { transition: all 0.3s cubic-bezier(0.16,1,0.3,1); }
+        .model-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+
+        .chat-bubble-user { background: linear-gradient(135deg, #3b82f6, #2563eb); border-bottom-right-radius: 4px; }
+        .chat-bubble-ai { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-bottom-left-radius: 4px; }
+
+        .markdown-body pre { background: #1a1b26; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; border: 1px solid rgba(255,255,255,0.08); }
+        .markdown-body code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; }
+        .markdown-body p > code { background: rgba(255,255,255,0.1); padding: 0.15rem 0.4rem; border-radius: 0.25rem; }
+        .markdown-body p { margin-bottom: 0.5rem; }
+        .markdown-body ul, .markdown-body ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+        .progress-bar { transition: width 0.5s ease; }
+
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.3); } 50% { box-shadow: 0 0 20px 4px rgba(59,130,246,0.15); } }
+        .pulse-glow { animation: pulse-glow 2s infinite; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-danger {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+            transition: all 0.2s ease;
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    </style>
+</head>
+<body class="h-screen w-full flex">
+
+<div id="app" class="w-full h-full flex">
+
+    <!-- ═══ LEFT SIDEBAR ═══ -->
+    <aside class="w-56 h-full flex flex-col border-r border-white/5 bg-surface-300 shrink-0">
+        <!-- Logo -->
+        <div class="p-5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+                <i class="ph-fill ph-cpu text-lg text-white"></i>
+            </div>
+            <div>
+                <div class="font-bold text-sm text-white tracking-wide">ANE Studio</div>
+                <div class="text-[10px] text-slate-500 tracking-widest uppercase">Neural Engine</div>
+            </div>
+        </div>
+
+        <!-- Nav Items -->
+        <nav class="flex-1 px-2 mt-2">
+            <button @click="currentView = 'chat'" :class="{'active': currentView === 'chat'}" class="sidebar-item w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-slate-300 mb-1">
+                <i class="ph ph-chat-dots text-lg"></i> Chat
+            </button>
+            <button @click="currentView = 'models'" :class="{'active': currentView === 'models'}" class="sidebar-item w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-slate-300 mb-1">
+                <i class="ph ph-cube text-lg"></i> Models
+                <span v-if="installedCount > 0" class="ml-auto text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">{{installedCount}}</span>
+            </button>
+            <button @click="currentView = 'api'" :class="{'active': currentView === 'api'}" class="sidebar-item w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-slate-300 mb-1">
+                <i class="ph ph-plug text-lg"></i> API Server
+            </button>
+            <button @click="currentView = 'settings'" :class="{'active': currentView === 'settings'}" class="sidebar-item w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-slate-300 mb-1">
+                <i class="ph ph-gear text-lg"></i> Settings
+            </button>
+        </nav>
+
+        <!-- Bottom Status -->
+        <div class="p-4 border-t border-white/5">
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <div class="w-2 h-2 rounded-full" :class="loadedModel ? 'bg-emerald-400' : 'bg-slate-600'"></div>
+                <span v-if="loadedModel" class="truncate">{{loadedModel}}</span>
+                <span v-else>No model loaded</span>
+            </div>
+            <div v-if="systemInfo" class="mt-2 text-[10px] text-slate-600">
+                RAM: {{systemInfo.ram_used_gb}}/{{systemInfo.ram_total_gb}} GB
+            </div>
+        </div>
+    </aside>
+
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="flex-1 h-full flex flex-col overflow-hidden bg-surface-400">
+
+        <!-- ──── CHAT VIEW ──── -->
+        <div v-if="currentView === 'chat'" class="flex-1 flex flex-col h-full">
+            <!-- Chat Header -->
+            <header class="h-14 shrink-0 flex items-center justify-between px-6 border-b border-white/5">
+                <div class="flex items-center gap-3">
+                    <i class="ph ph-chat-dots text-blue-400"></i>
+                    <span class="text-sm font-medium text-slate-200">Chat</span>
+                </div>
+                <select v-model="selectedChatModel" @change="switchChatModel" class="text-xs bg-surface-200 border border-white/10 text-slate-300 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500">
+                    <option v-for="m in installedModels" :key="m.id" :value="m.id">{{m.name}}</option>
+                    <option v-if="installedModels.length === 0" disabled>No models installed</option>
+                </select>
+            </header>
+
+            <!-- Messages -->
+            <div ref="chatContainer" class="flex-1 overflow-y-auto px-6 py-6">
+                <div v-if="chatMessages.length === 0" class="h-full flex flex-col items-center justify-center text-slate-600 gap-3">
+                    <i class="ph ph-sparkle text-5xl text-blue-500/30"></i>
+                    <p class="text-sm">Start a conversation with the Neural Engine</p>
+                </div>
+
+                <div v-for="(msg, i) in chatMessages" :key="i" class="mb-6 flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                    <div v-if="msg.role === 'assistant'" class="w-7 h-7 rounded-full bg-surface-100 border border-white/10 flex items-center justify-center mr-3 mt-1 shrink-0">
+                        <i class="ph-fill ph-robot text-blue-400 text-sm"></i>
+                    </div>
+                    <div class="max-w-[75%] rounded-2xl px-4 py-3" :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'">
+                        <div v-if="msg.role === 'user'" class="text-sm whitespace-pre-wrap">{{msg.content}}</div>
+                        <div v-else class="text-sm markdown-body" v-html="renderMd(msg.content)"></div>
+                    </div>
+                </div>
+
+                <div v-if="isGenerating" class="flex items-center gap-3 mb-6">
+                    <div class="w-7 h-7 rounded-full bg-surface-100 border border-white/10 flex items-center justify-center shrink-0">
+                        <i class="ph-fill ph-robot text-blue-400 text-sm animate-pulse"></i>
+                    </div>
+                    <div class="flex gap-1">
+                        <div class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style="animation-delay:0s"></div>
+                        <div class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style="animation-delay:0.15s"></div>
+                        <div class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style="animation-delay:0.3s"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input -->
+            <div class="shrink-0 px-6 pb-6 pt-2 flex flex-col gap-2">
+
+                <form @submit.prevent="sendChat" class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-cyan-400/20 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition"></div>
+                    <div class="relative glass rounded-2xl flex items-end p-2">
+                        <textarea v-model="chatInput" @keydown.enter.exact.prevent="sendChat" rows="1" :disabled="isGenerating"
+                            class="flex-1 bg-transparent text-white text-sm px-4 py-2.5 outline-none resize-none placeholder-slate-500 max-h-28"
+                            placeholder="Message the Neural Engine..." ref="chatInputEl" @input="autoResize"></textarea>
+                        
+
+                        <button type="submit" :disabled="!chatInput.trim() || isGenerating"
+                            class="btn-primary w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 mr-1 mb-0.5">
+                            <i class="ph-bold ph-paper-plane-right"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- ──── MODELS VIEW ──── -->
+        <div v-if="currentView === 'models'" class="flex-1 flex flex-col h-full overflow-hidden">
+            <header class="h-14 shrink-0 flex items-center px-6 border-b border-white/5">
+                <i class="ph ph-cube text-blue-400 mr-3"></i>
+                <span class="text-sm font-medium text-slate-200">Model Hub</span>
+                <span class="ml-3 text-xs text-slate-500">{{registry.length}} available</span>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div v-for="m in registry" :key="m.id"
+                         class="model-card glass rounded-2xl p-5 flex flex-col gap-3"
+                         :class="{'pulse-glow': m.loaded}">
+                        <!-- Header -->
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h3 class="font-semibold text-white text-sm">{{m.name}}</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">{{m.hf_id}}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] px-2 py-0.5 rounded-full" :class="m.installed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'">
+                                    {{m.installed ? 'Installed' : 'Available'}}
+                                </span>
+                                <span v-if="m.loaded" class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">Active</span>
+                            </div>
+                        </div>
+
+                        <!-- Info -->
+                        <p class="text-xs text-slate-400">{{m.description}}</p>
+                        <div class="flex items-center gap-4 text-[10px] text-slate-500">
+                            <span><i class="ph ph-chart-bar mr-1"></i>{{m.params}} params</span>
+                            <span><i class="ph ph-hard-drive mr-1"></i>~{{m.size_gb}} GB</span>
+                            <span v-if="m.gated" class="text-amber-400"><i class="ph ph-lock mr-1"></i>Gated</span>
+                            <span class="capitalize"><i class="ph ph-tag mr-1"></i>{{m.family}}</span>
+                        </div>
+
+                        <!-- Progress Bar & Logs -->
+                        <div v-if="m.downloading || m.compiling || getProg(m.id).status === 'error'" class="w-full mt-2">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-[10px] font-medium text-blue-400">{{getProg(m.id).message}}</span>
+                                <span class="text-[10px] text-slate-500">{{getProg(m.id).progress}}%</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-surface-200 rounded-full overflow-hidden mb-3">
+                                <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 progress-bar rounded-full" 
+                                    :style="{width: getProg(m.id).progress + '%'}"></div>
+                            </div>
+
+                            <!-- Terminal Logs -->
+                            <div v-if="activeLogs[m.id]" class="relative group">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[9px] uppercase tracking-wider text-slate-500">Process Logs</span>
+                                    <button @click="activeLogs[m.id] = false" class="text-[9px] text-slate-600 hover:text-slate-400">Hide</button>
+                                </div>
+                                <div class="bg-black/40 rounded-lg p-3 font-mono text-[9px] text-slate-300 h-40 overflow-y-auto border border-white/5 whitespace-pre-wrap leading-relaxed" 
+                                    :id="'logs-' + m.id">
+                                    {{getProg(m.id).full_log}}
+                                </div>
+                            </div>
+                            <button v-else @click="activeLogs[m.id] = true" class="text-[9px] text-blue-500/60 hover:text-blue-400 underline decoration-dotted">
+                                Show whole process logs
+                            </button>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex items-center gap-2 mt-auto pt-1">
+                            <template v-if="!m.installed && !m.downloading && !m.compiling">
+                                <button @click="downloadModel(m.id)" class="btn-primary text-xs px-4 py-2 rounded-xl">
+                                    <i class="ph ph-download-simple mr-1"></i> Download & Install
+                                </button>
+                            </template>
+                            <template v-if="m.installed && !m.loaded">
+                                <button @click="loadModel(m.id)" class="btn-primary text-xs px-4 py-2 rounded-xl">
+                                    <i class="ph ph-play mr-1"></i> Load
+                                </button>
+                                <button @click="deleteModel(m.id)" class="btn-danger text-xs px-3 py-2 rounded-xl">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </template>
+                            <template v-if="m.loaded">
+                                <button @click="unloadModel()" class="text-xs px-4 py-2 rounded-xl bg-slate-700/50 text-slate-300 hover:bg-slate-700">
+                                    <i class="ph ph-stop mr-1"></i> Unload
+                                </button>
+                            </template>
+                            <template v-if="m.downloading || m.compiling">
+                                <span class="text-xs text-blue-400 flex items-center gap-2">
+                                    <i class="ph ph-spinner animate-spin"></i> {{getProg(m.id).status}}...
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+
+
+        <!-- ──── API SERVER VIEW ──── -->
+        <div v-if="currentView === 'api'" class="flex-1 flex flex-col h-full overflow-y-auto p-6">
+            <header class="flex items-center gap-3 mb-6">
+                <i class="ph ph-plug text-blue-400 text-xl"></i>
+                <h2 class="font-semibold text-white text-lg">API Server</h2>
+            </header>
+
+            <!-- Status Card -->
+            <div class="glass rounded-2xl p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <span class="text-sm font-medium text-white">Server Running</span>
+                    </div>
+                    <span class="text-xs text-slate-500">Port {{serverStatus.port}}</span>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Loaded Model</span>
+                        <span class="text-white font-medium">{{serverStatus.loaded_model || 'None'}}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connection Strings -->
+            <h3 class="text-sm font-medium text-slate-300 mb-3">Connection Strings</h3>
+            <div class="space-y-3 mb-6">
+                <div class="glass rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-medium text-blue-400">Zed Editor (Ollama)</span>
+                        <button @click="copyText('http://' + (serverStatus.network_ip || '127.0.0.1') + ':' + serverStatus.port)" class="text-[10px] text-slate-400 hover:text-white flex items-center gap-1">
+                            <i class="ph ph-copy"></i> Copy
+                        </button>
+                    </div>
+                    <code class="text-xs text-slate-300 block bg-surface-400 p-2 rounded-lg mt-2 select-all">http://{{serverStatus.network_ip || '127.0.0.1'}}:{{serverStatus.port}}</code>
+                </div>
+
+                <div class="glass rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-medium text-emerald-400">Zed settings.json</span>
+                        <button @click='copyText(zedConfig)' class="text-[10px] text-slate-400 hover:text-white flex items-center gap-1">
+                            <i class="ph ph-copy"></i> Copy
+                        </button>
+                    </div>
+                    <pre class="text-xs text-slate-300 bg-surface-400 p-3 rounded-lg mt-2 overflow-x-auto"><code>{{zedConfig}}</code></pre>
+                </div>
+
+                <div class="glass rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-medium text-amber-400">Network (Dashboard)</span>
+                        <button @click="copyText('http://' + (serverStatus.network_ip || '127.0.0.1') + ':' + serverStatus.port + '/api/chat')" class="text-[10px] text-slate-400 hover:text-white flex items-center gap-1">
+                            <i class="ph ph-copy"></i> Copy
+                        </button>
+                    </div>
+                    <code class="text-xs text-slate-300 block bg-surface-400 p-2 rounded-lg mt-2 select-all">http://{{serverStatus.network_ip || '127.0.0.1'}}:{{serverStatus.port}}/api/chat</code>
+                </div>
+            </div>
+
+            <!-- API Endpoints Reference -->
+            <h3 class="text-sm font-medium text-slate-300 mb-3">API Endpoints</h3>
+            <div class="glass rounded-xl overflow-hidden">
+                <table class="w-full text-xs">
+                    <thead class="bg-surface-200">
+                        <tr>
+                            <th class="text-left px-4 py-2 text-slate-400 font-medium">Method</th>
+                            <th class="text-left px-4 py-2 text-slate-400 font-medium">Endpoint</th>
+                            <th class="text-left px-4 py-2 text-slate-400 font-medium">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        <tr><td class="px-4 py-2 text-emerald-400">GET</td><td class="px-4 py-2 text-slate-300">/api/tags</td><td class="px-4 py-2 text-slate-500">Ollama model list</td></tr>
+                        <tr><td class="px-4 py-2 text-blue-400">POST</td><td class="px-4 py-2 text-slate-300">/api/chat</td><td class="px-4 py-2 text-slate-500">Chat completion (stream)</td></tr>
+                        <tr><td class="px-4 py-2 text-emerald-400">GET</td><td class="px-4 py-2 text-slate-300">/api/models/registry</td><td class="px-4 py-2 text-slate-500">Browse model catalog</td></tr>
+                        <tr><td class="px-4 py-2 text-blue-400">POST</td><td class="px-4 py-2 text-slate-300">/api/models/download</td><td class="px-4 py-2 text-slate-500">Download & compile model</td></tr>
+                        <tr><td class="px-4 py-2 text-emerald-400">GET</td><td class="px-4 py-2 text-slate-300">/api/system/info</td><td class="px-4 py-2 text-slate-500">System information</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <!-- ──── SETTINGS VIEW ──── -->
+        <div v-if="currentView === 'settings'" class="flex-1 flex flex-col h-full overflow-y-auto p-6">
+            <header class="flex items-center gap-3 mb-6">
+                <i class="ph ph-gear text-blue-400 text-xl"></i>
+                <h2 class="font-semibold text-white text-lg">Settings</h2>
+            </header>
+
+            <div class="space-y-4 max-w-lg">
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-medium text-slate-200 mb-3">System Information</h3>
+                    <div v-if="systemInfo" class="space-y-2 text-xs">
+                        <div class="flex justify-between"><span class="text-slate-400">Platform</span><span class="text-slate-200">{{systemInfo.platform}}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Architecture</span><span class="text-slate-200">{{systemInfo.machine}}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Total RAM</span><span class="text-slate-200">{{systemInfo.ram_total_gb}} GB</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Available RAM</span><span class="text-slate-200">{{systemInfo.ram_available_gb}} GB</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Free Disk</span><span class="text-slate-200">{{systemInfo.disk_free_gb}} GB</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Models Directory</span><span class="text-slate-200 truncate ml-4">{{systemInfo.models_dir}}</span></div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-medium text-slate-200 mb-3">HuggingFace Configuration</h3>
+                    <div class="space-y-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Access Token (Optional)</label>
+                            <div class="flex gap-2">
+                                <input v-model="serverStatus.hf_token" type="password" 
+                                    class="flex-1 bg-surface-300 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
+                                    placeholder="hf_...">
+                                <button @click="updateHFToken" class="btn-primary text-[10px] px-3 py-2 rounded-lg font-medium">Save</button>
+                            </div>
+                            <p class="text-[10px] text-slate-500">Required for gated models like Llama 3.2 or Gemma.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-medium text-slate-200 mb-3">About</h3>
+                    <div class="text-xs text-slate-400 space-y-1">
+                        <p><strong class="text-slate-300">ANE Studio</strong> — Run AI models natively on Apple Neural Engine</p>
+                        <p>Backend: FastAPI + anemll (Core ML)</p>
+                        <p>Frontend: Vue 3 + Tailwind CSS</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+marked.setOptions({
+    highlight: (code, lang) => {
+        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return hljs.highlight(code, { language }).value;
+    },
+    langPrefix: 'hljs language-'
+});
+
+const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+
+createApp({
+    setup() {
+        const currentView = ref('chat');
+        const registry = ref([]);
+        const loadedModel = ref(null);
+        const systemInfo = ref({});
+        const serverStatus = ref({ port: 11436, network_ip: '127.0.0.1', loaded_model: null, hf_token: '' });
+        const progressCache = ref({});
+        const activeLogs = ref({}); // model_id -> boolean (show logs)
+
+        // MCP Tools State
+        const mcpTools = ref({});
+        const loadingMcp = ref(false);
+
+        // Chat state
+        const chatMessages = ref([]);
+        const chatInput = ref('');
+        const isGenerating = ref(false);
+        const chatInputEl = ref(null);
+        const chatContainer = ref(null);
+        const selectedChatModel = ref('');
+
+
+        const installedModels = computed(() => registry.value.filter(m => m.installed));
+        const installedCount = computed(() => installedModels.value.length);
+        const networkIP = ref('127.0.0.1');
+
+        const zedConfig = computed(() => {
+            const host = serverStatus.value.network_ip || networkIP.value || '127.0.0.1';
+            const port = serverStatus.value.port || 11436;
+            return JSON.stringify({
+                "language_models": { "ollama": { "api_url": `http://${host}:${port}` } }
+            }, null, 2);
+        });
+
+        // ─── API Calls ───
+        const fetchRegistry = async () => {
+            try {
+                const res = await fetch('/api/models/registry');
+                const data = await res.json();
+                registry.value = data.models;
+                const loaded = data.models.find(m => m.loaded);
+                loadedModel.value = loaded ? loaded.id : null;
+                if (!selectedChatModel.value && installedModels.value.length > 0) {
+                    selectedChatModel.value = installedModels.value[0].id;
+                }
+
+                // Auto-fetch progress for downloading models
+                data.models.forEach(m => {
+                    if (m.downloading || m.compiling) fetchProgress(m.id);
+                });
+            } catch (e) { console.error('Failed to fetch registry', e); }
+        };
+
+
+
+        const fetchProgress = async (modelId) => {
+            try {
+                const res = await fetch(`/api/models/progress/${modelId}`);
+                const data = await res.json();
+                progressCache.value[modelId] = data;
+                
+                // Keep showing logs if error occurred to show why
+                if (data.status === 'error' && !activeLogs.value[modelId]) {
+                    activeLogs.value[modelId] = true;
+                }
+                
+                // Auto scroll logs
+                if (activeLogs.value[modelId]) {
+                    nextTick(() => {
+                        const el = document.getElementById('logs-' + modelId);
+                        if (el) el.scrollTop = el.scrollHeight;
+                    });
+                }
+            } catch (e) {}
+        };
+
+        const fetchSystemInfo = async () => {
+            try {
+                const response = await fetch('/api/system/info');
+                systemInfo.value = await response.json();
+            } catch (e) { console.error('Failed to fetch system info:', e); }
+        };
+
+        const fetchServerStatus = async () => {
+            try {
+                const response = await fetch('/api/server/status');
+                serverStatus.value = await response.json();
+            } catch (e) { console.error('Failed to fetch server status:', e); }
+        };
+
+        const updateHFToken = async () => {
+            try {
+                await fetch('/api/server/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hf_token: serverStatus.value.hf_token })
+                });
+                alert('HuggingFace Token updated successfully!');
+            } catch (e) { alert('Failed to update token'); }
+        };
+
+        const downloadModel = async (modelId) => {
+            activeLogs.value[modelId] = true;
+            await fetch('/api/models/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_id: modelId }),
+            });
+            fetchRegistry();
+        };
+
+        const loadModel = async (modelId) => {
+            await fetch('/api/models/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_id: modelId }),
+            });
+            fetchRegistry();
+        };
+
+        const unloadModel = async () => {
+            await fetch('/api/models/unload', { method: 'POST' });
+            loadedModel.value = null;
+            fetchRegistry();
+        };
+
+        const deleteModel = async (modelId) => {
+            if (!confirm(`Delete model ${modelId}? This cannot be undone.`)) return;
+            await fetch('/api/models/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_id: modelId }),
+            });
+            fetchRegistry();
+        };
+
+        const switchChatModel = async () => {
+            if (selectedChatModel.value) await loadModel(selectedChatModel.value);
+        };
+
+        const sendChat = async () => {
+            const text = chatInput.value.trim();
+            if (!text || isGenerating.value) return;
+
+            chatMessages.value.push({ role: 'user', content: text });
+            chatInput.value = '';
+            autoResize();
+            scrollToBottom();
+
+            const aiIdx = chatMessages.value.length;
+            chatMessages.value.push({ role: 'assistant', content: '' });
+            isGenerating.value = true;
+            
+            const apiMessages = chatMessages.value.slice(0, aiIdx).map(m => ({
+                role: m.role,
+                content: m.content
+            }));
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        model: selectedChatModel.value,
+                        messages: apiMessages,
+                        stream: true
+                    }),
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let done = false;
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        for (const line of chunk.split('\n')) {
+                            if (!line.trim()) continue;
+                            try {
+                                const cleanLine = line.startsWith('data: ') ? line.replace('data: ', '') : line;
+                                if (cleanLine === '[DONE]') { done = true; break; }
+                                
+                                const data = JSON.parse(cleanLine);
+                                if (data.error) {
+                                    chatMessages.value[aiIdx].content += `\n\n**Error: ${data.error}**`;
+                                    done = true;
+                                    break;
+                                }
+                                const token = data.message ? data.message.content : (data.token || '');
+                                chatMessages.value[aiIdx].content += token;
+                                scrollToBottom();
+                                
+                                if (data.done) { done = true; break; }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                
+
+
+            } catch (error) {
+                chatMessages.value[aiIdx].content += '\n\n**Error: Could not reach the Neural Engine.**';
+            } finally {
+                isGenerating.value = false;
+                scrollToBottom();
+                await nextTick();
+                document.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+            }
+        };
+
+        const scrollToBottom = async () => {
+            await nextTick();
+            if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        };
+
+        const autoResize = () => {
+            if (chatInputEl.value) {
+                chatInputEl.value.style.height = 'auto';
+                chatInputEl.value.style.height = chatInputEl.value.scrollHeight + 'px';
+            }
+        };
+
+        const copyText = (text) => {
+            navigator.clipboard.writeText(text);
+        };
+
+        onMounted(() => {
+            loadingMcp.value = true;
+            fetchRegistry();
+            fetchSystemInfo();
+            fetchServerStatus();
+
+            
+            setInterval(() => {
+                fetchRegistry();
+                if (currentView.value === 'settings') fetchSystemInfo();
+                if (currentView.value === 'api') fetchServerStatus();
+            }, 3000);
+        });
+
+        return {
+            currentView, registry, loadedModel, systemInfo, serverStatus, progressCache, activeLogs,
+            chatMessages, chatInput, isGenerating, chatInputEl, chatContainer, selectedChatModel,
+            installedModels, installedCount, networkIP, zedConfig, 
+            fetchRegistry, downloadModel, loadModel, unloadModel, deleteModel, switchChatModel, 
+            sendChat, renderMd: (t) => marked.parse(t || ''), autoResize, copyText, updateHFToken,
+            getProg: (id) => progressCache.value[id] || { progress: 0, message: 'Idle', full_log: '' }
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "duckduckgo": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "duckduckgo-mcp-server"
+      ],
+      "env": {}
+    },
+    "wikipedia": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "wikipedia-mcp"
+      ],
+      "env": {}
+    }
+  }
+}
