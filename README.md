@@ -115,5 +115,12 @@ The ANE Studio interface is designed to feel alive and high-end:
 
 ---
 
-> **Current State:** Comprehensive Documentation | **Health:** Verified | **Inference:** Neural Engine (ANE)
-# ANE---Apple-Neural-Engine-AI-Studio
+## 📜 License
+
+This project is licensed under the **MIT License**. See the [LICENSE](file:///Users/jp_mac/workspace/JP/ANE/LICENSE) file for the full text.
+
+---
+
+> **Current State:** Repository Finalized | **Health:** Verified | **Inference:** ANE (Neural Engine)
+
+# ANE — Apple Neural Engine AI Studio
