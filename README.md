@@ -12,7 +12,6 @@ Prepare the Apple Silicon environment and dependencies:
 # This creates the virtual environment and installs CoreML/ANE tools
 bash setup_coreml.sh
 ```
-
 ### 2. Launch ANE Studio
 You have two ways to run the studio:
 
