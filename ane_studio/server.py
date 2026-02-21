@@ -219,7 +219,7 @@ API_CONFIG = {
     "port": 11436,
     "host": "0.0.0.0",
     "running": True,
-    "hf_token": "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",  # Default provided by user
+    "hf_token": "",  # Default provided by user
 }
 
 # ─── Global State ─────────────────────────────────────────────────────────────
