@@ -214,7 +214,6 @@ ENGINE_STATE = {
 DOWNLOAD_PROGRESS = {}
 PROGRESS_LOCK = threading.Lock()
 
-
 # API Server config
 API_CONFIG = {
     "port": 11436,
