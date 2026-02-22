@@ -1,0 +1,27 @@
+#!/bin/bash
+# ANE Studio — macOS App Launcher
+
+WORKSPACE="/Users/jp_mac/workspace/JP/ANE"
+APP_DIR="$WORKSPACE/ane_studio"
+LOG_FILE="$APP_DIR/launch.log"
+
+# Log without redirecting ALL output (pywebview needs clean stdout/stderr)
+echo "=== ANE Studio Launch $(date) ===" > "$LOG_FILE"
+
+# Stable temp directory
+export TMPDIR="$APP_DIR/tmp_cache"
+mkdir -p "$TMPDIR"
+
+# Activate the anemll virtual environment
+VENV="$WORKSPACE/anemll/env-anemll/bin/activate"
+if [ ! -f "$VENV" ]; then
+    osascript -e "display dialog \"Cannot find anemll environment at:\n$VENV\" with title \"ANE Studio\" buttons {\"OK\"} default button \"OK\" with icon caution"
+    exit 1
+fi
+
+source "$VENV"
+echo "Python: $(which python)" >> "$LOG_FILE"
+
+# Launch the app (pywebview needs clean stdout/stderr for GUI)
+cd "$APP_DIR"
+python app.py >> "$LOG_FILE" 2>&1
